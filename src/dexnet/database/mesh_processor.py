@@ -186,6 +186,10 @@ class MeshProcessor:
         self._standardize_pose()
         if rescale_mesh:
             self._rescale_vertices(scale, rescaling_type, use_uniform_com)
+        self.mesh_.trimesh_ = None
+        self.mesh_.trimesh # initialize mesh_.trimesh_
+        if use_uniform_com: # adopted from somewhere in the code, I don'w know what this means
+            self.mesh_.center_of_mass = self.mesh_._compute_com_uniform()
 
     def _remove_bad_tris(self):
         """ Remove triangles with illegal out-of-bounds references """
@@ -337,6 +341,7 @@ class MeshProcessor:
 
     def _generate_stable_poses(self, min_prob = 0.05):
         """ Computes mesh stable poses """
+        logging.info('wanfang: generate stable pose')
         self.stable_poses_ = self.mesh_.stable_poses(min_prob=min_prob)
         return self.stable_poses_
 

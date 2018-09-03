@@ -52,11 +52,12 @@ except:
     logger.warning('Failed to import DexNetVisualizer3D, visualization methods will be unavailable')
 
 DEXNET_DIR = os.path.realpath(os.path.dirname(os.path.realpath(__file__)) + '/../../') + '/'
-DEXNET_API_DEFAULTS_FILE = DEXNET_DIR + 'cfg/api_defaults.yaml'
+# DEXNET_API_DEFAULTS_FILE = DEXNET_DIR + 'cfg/api_defaults.yaml'
+DEXNET_API_DEFAULTS_FILE = DEXNET_DIR + 'test/config.yaml'
 
 class DexNet(object):
     """Class providing an interface for main DexNet pipeline
-    
+
     Attributes
     ----------
     database : :obj:`dexnet.database.Database
@@ -69,10 +70,10 @@ class DexNet(object):
         Also, see:
             dexnet.grasping.grasp_quality_config for metrics and their associated configs
             dexnet.database.mesh_processor for configs associated with initial mesh processing
-        
+
     Other Parameters
     ----------------
-    cache_dir 
+    cache_dir
         Cache directory for to store intermediate files. If None uses a temporary directory
     use_default_mass
         If True, clobbers mass and uses default_mass as mass always
@@ -113,16 +114,17 @@ class DexNet(object):
         """
         self.database = None
         self.dataset = None
-        
+
         self._database_temp_cache_dir = None
-        
+
         # open default config
         self.default_config = YamlConfig(DEXNET_API_DEFAULTS_FILE)
+        logger.info("DEXNET_API_DEFAULTS_FILE {}".format(DEXNET_API_DEFAULTS_FILE))
         # Resolve gripper_dir and cache_dir relative to dex-net root
         for key in ['gripper_dir', 'cache_dir']:
             if not os.path.isabs(self.default_config[key]):
                 self.default_config[key] = os.path.realpath(DEXNET_DIR + self.default_config[key])
-    
+
     #TODO
     #Move to YamlConfig
     @staticmethod
@@ -134,40 +136,40 @@ class DexNet(object):
             else:
                 config[key] = value
         return config
-    
+
     def _get_config(self, updates=None):
         """ Gets a copy of the default config dict with updates from the dict passed in applied """
         updated_cfg = copy.deepcopy(self.default_config.config)
         if updates is not None:
             DexNet._deep_update_config(updated_cfg, updates)
         return updated_cfg
-    
+
     def _check_opens(self):
         """ Checks that database and dataset are open """
         if self.database is None:
             raise RuntimeError('You must open a database first')
         if self.dataset is None:
             raise RuntimeError('You must open a dataset first')
-        
+
     def open_database(self, database_path, config=None, create_db=True):
         """Open/create a database.
 
         Parameters
         ----------
         database_path : :obj:`str`
-            Path (can be relative) to the database, or the path to create a database at.        
+            Path (can be relative) to the database, or the path to create a database at.
         create_db : boolean
             If True, creates database if one does not exist at location specified.
             If False, raises error if database does not exist at location specified.
         config : :obj:`dict`
             Dictionary of parameters for database creation
             Parameters are in Other Parameters. Values from self.default_config are used for keys not provided.
-            
+
         Other Parameters
         ----------------
-        cache_dir 
+        cache_dir
             Cache directory for to store intermediate files. If None uses a temporary directory
-            
+
         Raises
         ------
         ValueError
@@ -175,7 +177,7 @@ class DexNet(object):
             If database does not exist at path and create_db is False.
         """
         config = self._get_config(config)
-        
+
         if self.database is not None:
             if self._database_temp_cache_dir is not None:
                 shutil.rmtree(self._database_temp_cache_dir)
@@ -185,7 +187,7 @@ class DexNet(object):
         # Check database path extension
         _, database_ext = os.path.splitext(database_path)
         if database_ext != db.HDF5_EXT:
-            raise ValueError('Database must have extension {}'.format(db.HDF5_EXT)) 
+            raise ValueError('Database must have extension {}'.format(db.HDF5_EXT))
 
         # Abort if database does not exist and create_db is False
         if not os.path.exists(database_path):
@@ -193,18 +195,18 @@ class DexNet(object):
                 raise ValueError('Database does not exist at path {} and create_db is False'.format(database_path))
             else:
                 logger.info("File not found, creating new database at {}".format(database_path))
-                
+
         # Create temp dir if cache dir is not provided
         cache_dir = config['cache_dir']
         if cache_dir is None:
             cache_dir = tempfile.mkdtemp()
             self._database_temp_cache_dir = cache_dir
-            
+
         # Open database
         self.database = db.Hdf5Database(database_path,
                                         access_level=db.READ_WRITE_ACCESS,
                                         cache_dir=cache_dir)
-    
+
     def open_dataset(self, dataset_name, config=None, create_ds=True):
         """Open/create a dataset
 
@@ -219,7 +221,7 @@ class DexNet(object):
             Dictionary containing a key 'metrics' that maps to a dictionary mapping metric names to metric config dicts
             For available metrics and their corresponding config parameters see dexnet.grasping.grasp_quality_config
             Values from self.default_config are used for keys not provided
-        
+
         Raises
         ------
         ValueError
@@ -229,15 +231,15 @@ class DexNet(object):
         """
         if self.database is None:
             raise RuntimeError('You must open a database first')
-        
+
         config = self._get_config(config)
-        
+
         tokens = dataset_name.split()
         if len(tokens) > 1:
             raise ValueError("dataset_name \"{}\" is invalid (contains delimiter)".format(dataset_name))
-            
+
         existing_datasets = [d.name for d in self.database.datasets]
-            
+
         # create/open new ds
         if dataset_name not in existing_datasets:
             if create_ds:
@@ -247,17 +249,17 @@ class DexNet(object):
                 metric_dict = config['metrics']
                 for metric_name, metric_spec in metric_dict.iteritems():
                     # create metric
-                    metric_config = gqc.GraspQualityConfigFactory.create_config(metric_spec)            
+                    metric_config = gqc.GraspQualityConfigFactory.create_config(metric_spec)
                     self.dataset.create_metric(metric_name, metric_config)
             else:
                 raise ValueError(
                     "dataset_name \"{}\" is invalid (does not exist, and create_ds is False)".format(dataset_name))
         else:
             self.dataset = self.database.dataset(dataset_name)
-            
+
         if self.dataset.metadata is None:
             self._attach_metadata()
-    
+
     #TODO
     #Once trimesh integration is here via meshpy remove this
     @staticmethod
@@ -280,7 +282,7 @@ class DexNet(object):
     def is_watertight(mesh):
         mesh_tm = DexNet._meshpy_to_trimesh(mesh)
         return mesh_tm.is_watertight
-    
+
     #TODO
     #Make this better and more general
     def _attach_metadata(self):
@@ -291,10 +293,10 @@ class DexNet(object):
         self.dataset.attach_metadata_func("watertightness", DexNet.is_watertight, overwrite=False, store_func=True)
         self.dataset.create_metadata("num_con_comps", "float", "Number of connected components (may not be watertight) in the mesh")
         self.dataset.attach_metadata_func("num_con_comps", object(), overwrite=False, store_func=True)
-    
+
     def add_object(self, filepath, config=None, mass=None, name=None):
         """Add graspable object to current open dataset
-        
+
         Parameters
         ----------
         filepath : :obj:`str`
@@ -307,16 +309,16 @@ class DexNet(object):
             Name to use for graspable. If None defaults to the name of the obj file provided in filepath
         mass : float
             Mass of object. Gets clobbered if use_default_mass is set in config.
-            
+
         Other Parameters
         ----------------
-        cache_dir 
+        cache_dir
             Cache directory for mesh processor to store intermediate files. If None uses a temporary directory
         use_default_mass
             If True, clobbers mass and uses default_mass as mass always
         default_mass
             Default mass value if mass is not given, or if use_default_mass is set
-        
+
         Raises
         ------
         RuntimeError
@@ -325,24 +327,24 @@ class DexNet(object):
         """
         self._check_opens()
         config = self._get_config(config)
-        
+
         if name is None:
             _, root = os.path.split(filepath)
             name, _ = os.path.splitext(root)
         if name in self.dataset.object_keys:
             raise RuntimeError('An object with key %s already exists. ' +
                                'Delete the object with delete_graspable first if replacing it'.format(name))
-        
+
         if mass is None or config['use_default_mass']:
             mass = config['default_mass']
-         
+
         # Create temp dir if cache dir is not provided
         mp_cache = config['cache_dir']
         del_cache = False
         if mp_cache is None:
             mp_cache = tempfile.mkdtemp()
             del_cache = True
-        
+
         # open mesh preprocessor
         mesh_processor = mp.MeshProcessor(filepath, mp_cache)
         mesh_processor.generate_graspable(config)
@@ -355,7 +357,7 @@ class DexNet(object):
         # Delete cache if using temp cache
         if del_cache:
             shutil.rmtree(mp_cache)
-            
+
     @staticmethod
     def _single_obj_grasps(dataset, obj, gripper, config, stable_pose_id=None):
         """ Sample grasps and compute metrics for given object, gripper, and stable pose """
@@ -372,10 +374,10 @@ class DexNet(object):
         # sample grasps
         grasps = sampler.generate_grasps(obj, max_iter=config['max_grasp_sampling_iters'])
         return grasps
-    
+
     def sample_grasps(self, config=None, object_name=None, gripper_name=None, overwrite=True, stable_pose=None):
         """Sample grasps for an object or the entire dataset
-        
+
         Parameters
         ----------
         config : :obj:`dict`
@@ -390,7 +392,7 @@ class DexNet(object):
         stable_pose : :obj:`str`
             ID of stable pose to use. If None does all stable poses.
             Note that setting this does not make sense if obj_name is None
-            
+
         Other Parameters
         ----------------
         grasp_sampler
@@ -399,7 +401,7 @@ class DexNet(object):
             number of attempts to return an exact number of grasps before giving up
         gripper_dir
             Directory where the grippers models and parameters are.
-            
+
         Raises
         ------
         ValueError
@@ -410,21 +412,21 @@ class DexNet(object):
         """
         self._check_opens()
         config = self._get_config(config)
-        
+
         grippers = os.listdir(config['gripper_dir'])
         if gripper_name is not None:
             if gripper_name in grippers:
                 grippers = [gripper_name]
             else:
                 raise ValueError("{} is not a valid gripper name".format(gripper_name))
-        
+
         objects = self.dataset.object_keys
         if object_name is not None:
             if object_name in objects:
                 objects = [object_name]
             else:
                 raise ValueError("{} is not a valid object name".format(object_name))
-        
+
         for gripper_name in grippers:
             gripper = gr.RobotGripper.load(gripper_name, gripper_dir=config['gripper_dir'])
             for object_name in objects:
@@ -445,7 +447,7 @@ class DexNet(object):
                 self.database.flush()
                 grasps_stop = time.time()
                 logger.info('Sampling grasps took %.3f sec' %(grasps_stop - grasps_start))
-            
+
     @staticmethod
     def _gravity_wrench(obj, stable_pose, gravity_accel):
         """ Compute the wrench exerted by gravity. Helper method for compute_metrics """
@@ -506,14 +508,14 @@ class DexNet(object):
                 # add to database
                 if not self.dataset.has_metric(metric_name):
                     self.dataset.create_metric(metric_name, metric_config)
-                    
+
                 # add params from gripper (right now we don't want the gripper involved in quality computation)
                 setattr(metric_config, 'force_limits', gripper.force_limit)
                 setattr(metric_config, 'finger_radius', gripper.finger_radius)
-            
+
                 # create quality function
                 quality_fn = gqf.GraspQualityFunctionFactory.create_quality_function(obj, metric_config)
-                
+
                 # compute quality for each grasp
                 for k, grasp in enumerate(grasps):
                     if k % config['metric_display_rate'] == 0:
@@ -521,10 +523,10 @@ class DexNet(object):
 
                     # init grasp metric dict if necessary
                     if grasp.id not in grasp_metrics.keys():
-                        grasp_metrics[grasp.id] = {}              
+                        grasp_metrics[grasp.id] = {}
 
                     existing_metrics = self.dataset.grasp_metrics(obj.key, [grasp], gripper=gripper.name)[grasp.id]
-                      
+
                     # compute stable-pose specific metrics if check approach specified
                     if metric_config.check_approach and metric_config.quality_method != 'partial_closure' and \
                        metric_config.quality_method != 'wrench_resistance':
@@ -560,7 +562,7 @@ class DexNet(object):
 
     def compute_metrics(self, config=None, metric_name=None, object_name=None, gripper_name=None, stable_pose=None, overwrite=True):
         """Compute metrics for an object or the entire dataset.
-        
+
         Parameters
         ----------
         config : :obj:`dict`
@@ -576,8 +578,8 @@ class DexNet(object):
             ID of stable pose to use. If None does all stable poses.
             Note that setting this does not make sense if obj_name is None
         overwrite : boolean
-            If True, overwrites existing computed metrics. Otherwise logs a warning and keeps existing values 
-        
+            If True, overwrites existing computed metrics. Otherwise logs a warning and keeps existing values
+
         Other Parameters
         ----------------
         gripper_dir
@@ -589,7 +591,7 @@ class DexNet(object):
         metrics
             Dictionary mapping metric names to metric config dicts
             For available metrics and their config parameters see dexnet.grasping.grasp_quality_config
-            
+
         Raises
         ------
         ValueError
@@ -615,7 +617,7 @@ class DexNet(object):
                 objects = [object_name]
             else:
                 raise ValueError("{} is not a valid object name".format(object_name))
-            
+
         if metric_name is not None:
             if metric_name not in config['metrics'].keys():
                 raise RuntimeError("Metric {} does not exist".format(metric_name))
@@ -633,16 +635,16 @@ class DexNet(object):
                     # compute metrics
                     obj = self.dataset[obj_name]
                     logger.info('Computing grasp metric %s for object %s' %(metric, obj_name))
-                
+
                     metrics_start = time.time()
                     self._compute_metrics(obj, gripper, config, stable_pose_id=stable_pose, metric_name=metric, overwrite=overwrite)
                     self.database.flush()
                     metrics_stop = time.time()
                     logger.info('Computing metrics took %.3f sec' %(metrics_stop - metrics_start))
-                    
+
     def compute_simulation_data(self, object_name, config=None):
         """Compute normals and convex decomposition for object (preprocessing for simulation)
-        
+
         Parameters
         ----------
         object_name
@@ -650,12 +652,12 @@ class DexNet(object):
         config : :obj:`dict`
             Configuration dict for computing simulation data.\
             Parameters are in Other parameters. Values from self.default_config are used for keys not provided.
-            
+
         Other Parameters
         -----------------
-        cache_dir 
+        cache_dir
             Cache directory for to store intermediate files. If None uses a temporary directory
-                    
+
         Raises
         ------
         RuntimeError
@@ -663,14 +665,14 @@ class DexNet(object):
         """
         self._check_opens()
         config=self._get_config(config)
-        
+
         # Create temp dir if cache dir is not provided
         cache_dir = config['cache_dir']
         del_cache = False
         if cache_dir is None:
             cache_dir = tempfile.mkdtemp()
             del_cache = True
-        
+
         obj = self.dataset[object_name]
         if obj.mesh.normals is None:
             logger.info('Computing vertex normals for {}'.format(object_name))
@@ -684,20 +686,20 @@ class DexNet(object):
             raise e
         self.dataset.delete_convex_pieces(object_name)
         self.dataset.store_convex_pieces(object_name, convex_pieces)
-        
+
         if del_cache:
             shutil.rmtree(cache_dir)
-            
+
     def compute_metadata(self, object_name, config=None, overwrite=False):
         """Compute metadata for object
-        
+
         Parameters
         ----------
         object : :obj:`str`
             Object name to compute metadata for
         overwrite : boolean
-            If True, overwrites existing metadata. Otherwise, logs a warning and keeps existing metadata 
-            
+            If True, overwrites existing metadata. Otherwise, logs a warning and keeps existing metadata
+
         Raises
         ------
         RuntimeError
@@ -706,10 +708,10 @@ class DexNet(object):
         self._check_opens()
         config=self._get_config(config)
         self.dataset.compute_object_metadata(object_name, force_overwrite=overwrite)
-        if (not overwrite and self.dataset.connected_components(object_name) is not None 
+        if (not overwrite and self.dataset.connected_components(object_name) is not None
                 and 'num_con_comps' in self.dataset.object_metadata(object_name).keys()): #Remove static references to num_con_comps
             raise RuntimeError("Connected components data already exists for object {}, aborting".format(object_name))
-            
+
         #TODO
         #Fix this once trimesh functionality is integrated into meshpy
         ccs_trm = DexNet._meshpy_to_trimesh(self.dataset.mesh(object_name)).split(only_watertight=False)
@@ -721,12 +723,12 @@ class DexNet(object):
 
     def get_metadata(self, object_name, config=None):
         """Get metadata for object
-        
+
         Parameters
         ----------
         object_name : :obj:`str`
             object name to get metadata for
-            
+
         Raises
         ------
         RuntimeError
@@ -734,12 +736,12 @@ class DexNet(object):
         """
         self._check_opens()
         config=self._get_config(config)
-        
+
         return self.dataset.object_metadata(object_name)
- 
+
     def export_objects(self, output_dir, export_filters={}, to_export=None, config=None):
         """Export objects as .obj files to a directory. Provides filtering ability to only export some objects
-        
+
         Parameters
         ----------
         output_dir : :obj:`str`
@@ -753,7 +755,7 @@ class DexNet(object):
         config : :obj:`dict`
             Configuration dict for computing simulation data.
             Parameters are in Other parameters. Values from self.default_config are used for keys not provided.
-        
+
         Other Parameters
         ----------------
         export_format
@@ -762,7 +764,7 @@ class DexNet(object):
             Scale for export.
         export_overwrite
             If True, will overwrite existing files
-        
+
         Raises
         ------
         RuntimeError
@@ -772,7 +774,7 @@ class DexNet(object):
         """
         self._check_opens()
         config=self._get_config(config)
-        
+
         if not os.path.isdir(output_dir):
             os.makedirs(output_dir)
         if to_export is None:
@@ -785,7 +787,7 @@ class DexNet(object):
                     logger.warning("Metadata {} not computed for object {}! Excluding object.".format(metadata_name, object_name))
                     pass_filters = False
                     break
-                pass_filters = pass_filters & filter_fn(metadata_dict[metadata_name]) 
+                pass_filters = pass_filters & filter_fn(metadata_dict[metadata_name])
             if pass_filters:
                 if config["export_format"] == 'obj':
                     self.dataset.obj_mesh_filename(object_name, scale=config["export_scale"], output_dir=output_dir,
@@ -798,16 +800,16 @@ class DexNet(object):
                                                    overwrite=config["export_overwrite"])
                 else:
                     raise ValueError("Export format {} not supported".format(config["export_format"]))
-    
+
     def list_grippers(self, config=None):
         """List available grippers
-        
+
         Parameters
         ----------
         config : :obj:`dict`
             Configuration dict.
             Parameters are in Other parameters. Values from self.default_config are used for keys not provided.
-            
+
         Other Parameters
         ----------------
         gripper_dir
@@ -815,21 +817,21 @@ class DexNet(object):
         """
         config = self._get_config(config)
         return os.listdir(config['gripper_dir'])
-        
+
     def list_metrics(self, config=None):
         """List available metrics
-        
+
         Parameters
         ----------
         config : :obj:`dict`
             Configuration dict.
             Parameters are in Other parameters. Values from self.default_config are used for keys not provided.
-            
+
         Other Parameters
         ----------------
         metrics
             Dictionary mapping metric names to metric config dicts
-            
+
         Returns
         -------
         :obj:`list` of :obj:`str`
@@ -837,20 +839,20 @@ class DexNet(object):
         """
         config = self._get_config(config)
         return config['metrics'].keys()
-    
+
     def list_metadata(self):
         """List available metadata names.
-            
+
         Returns
         -------
         :obj:`list` of :obj:`str`
             List of metadata names
         """
         return self.dataset.metadata_names
-    
+
     def list_objects(self):
         """List available objects in current dataset
-            
+
         Returns
         -------
         :obj:`list` of :obj:`str`
@@ -858,15 +860,15 @@ class DexNet(object):
         """
         self._check_opens()
         return self.dataset.object_keys
-    
+
     def get_object(self, object_name):
         """Get an object from current dataset by name
-        
+
         Parameters
         ----------
         object_name : :obj:`str`
             Name of object to get
-            
+
         Returns
         -------
         :obj:`Mesh3D`
@@ -874,15 +876,15 @@ class DexNet(object):
         """
         self._check_opens()
         return self.dataset[object_name].mesh
-    
+
     def get_stable_poses(self, object_name):
         """Get stable poses for an object by name
-        
+
         Parameters
         ----------
         object_name : :obj:`str`
             Name of object to get
-        
+
         Returns
         ------
         :obj:`list` of :obj:`meshpy.StablePose`
@@ -890,7 +892,7 @@ class DexNet(object):
         """
         self._check_opens()
         return self.dataset.stable_poses()
-    
+
     def get_grasps(self, object_name, gripper_name, metric_name=None):
         """ Returns the list of grasps for the given graspable sorted by decreasing quality according to the given metric.
 
@@ -917,7 +919,7 @@ class DexNet(object):
 
     def display_object(self, object_name, config=None):
         """Display an object
-        
+
         Parameters
         ----------
         object_name : :obj:`str`
@@ -926,12 +928,12 @@ class DexNet(object):
         config : :obj:`dict`
             Configuration dict for visualization.
             Parameters are in Other parameters. Values from self.default_config are used for keys not provided.
-        
+
         Other Parameters
         ----------------
         animate
             Whether or not to animate the displayed object
-            
+
         Raises
         ------
         ValueError
@@ -941,7 +943,7 @@ class DexNet(object):
         """
         self._check_opens()
         config=self._get_config(config)
-        
+
         if object_name not in self.dataset.object_keys:
             raise ValueError("{} is not a valid object name".format(object_name))
 
@@ -949,12 +951,12 @@ class DexNet(object):
         obj = self.dataset[object_name]
 
         vis.figure(bgcolor=(1,1,1), size=(1000,1000))
-        vis.mesh(obj.mesh, color=(0.5, 0.5, 0.5), style='surface')
+        vis.mesh(obj.mesh.trimesh, color=(0.5, 0.5, 0.5), style='surface')
         vis.show(animate=config['animate'])
 
     def display_stable_poses(self, object_name, config=None):
         """Display an object's stable poses
-        
+
         Parameters
         ----------
         object_name : :obj:`str`
@@ -962,12 +964,12 @@ class DexNet(object):
         config : :obj:`dict`
             Configuration dict for visualization.
             Parameters are in Other parameters. Values from self.default_config are used for keys not provided.
-        
+
         Other Parameters
         ----------------
         animate
             Whether or not to animate the displayed object
-            
+
         Raises
         ------
         ValueError
@@ -977,10 +979,10 @@ class DexNet(object):
         """
         self._check_opens()
         config=self._get_config(config)
-        
+
         if object_name not in self.dataset.object_keys:
             raise ValueError("{} is not a valid object name".format(object_name))
-        
+
         logger.info('Displaying stable poses for'.format(object_name))
         obj = self.dataset[object_name]
         stable_poses = self.dataset.stable_poses(object_name)
@@ -988,14 +990,15 @@ class DexNet(object):
         for stable_pose in stable_poses:
             print 'Stable pose %s with p=%.3f' %(stable_pose.id, stable_pose.p)
             vis.figure()
-            vis.mesh_stable_pose(obj.mesh, stable_pose,
+            vis.mesh_stable_pose(obj.mesh.trimesh, stable_pose.T_obj_world,
                                  color=(0.5, 0.5, 0.5), style='surface')
             vis.pose(RigidTransform(), alpha=0.15)
+            logger.info('wanfang')
             vis.show(animate=config['animate'])
-            
+
     def display_grasps(self, object_name, gripper_name, metric_name, config=None):
-        """ Display grasps for an object 
-        
+        """ Display grasps for an object
+
         Parameters
         ----------
         object_name : :obj:`str`
@@ -1005,9 +1008,9 @@ class DexNet(object):
         metric_name : :obj:`str`
             Metric to color/rank grasps with
         config : :obj:`dict`
-            Configuration dict for visualization. 
+            Configuration dict for visualization.
             Parameters are in Other parameters. Values from self.default_config are used for keys not provided.
-        
+
         Other Parameters
         ----------------
         gripper_dir
@@ -1037,30 +1040,30 @@ class DexNet(object):
 
         metrics = self.dataset.available_metrics(object_name, gripper=gripper.name)
         if metric_name not in metrics:
-            raise ValueError("{} is not computed for gripper {}, object {}".format(metric_name, gripper.name, object_name)) 
+            raise ValueError("{} is not computed for gripper {}, object {}".format(metric_name, gripper.name, object_name))
 
         logger.info('Displaying grasps for gripper %s on object %s' %(gripper.name, object_name))
         object = self.dataset[object_name]
         grasps, metrics = self.dataset.sorted_grasps(object_name, metric_name,
                                                      gripper=gripper.name)
-             
+
         if len(grasps) == 0:
             raise RuntimeError('No grasps for gripper %s on object %s' %(gripper.name, object_name))
             return
-                     
+
         low = np.min(metrics)
         high = np.max(metrics)
         if low == high:
             q_to_c = lambda quality: config['quality_scale']
         else:
             q_to_c = lambda quality: config['quality_scale'] * (quality - low) / (high - low)
-  
+
         if config['show_gripper']:
             i = 0
             stable_pose = self.dataset.stable_pose(object.key, 'pose_1')
             for grasp, metric in zip(grasps, metrics):
                 if metric <= config['min_metric']:
-                    continue                 
+                    continue
 
                 print 'Grasp %d %s=%.5f' %(grasp.id, metric_name, metric)
                 T_obj_world = RigidTransform(from_frame='obj',
@@ -1080,10 +1083,10 @@ class DexNet(object):
         else:
             i = 0
             vis.figure()
-            vis.mesh(object.mesh, style='surface')
+            vis.mesh(object.mesh.trimesh, style='surface')
             for grasp, metric in zip(grasps, metrics):
-                if metric <= config['min_metric']:
-                    continue                 
+                # if metric <= config['min_metric']:
+                #     continue
 
                 print 'Grasp %d %s=%.5f' %(grasp.id, metric_name, metric)
                 T_obj_world = RigidTransform(from_frame='obj',
@@ -1100,12 +1103,12 @@ class DexNet(object):
 
     def delete_object(self, object_name):
         """ Delete an object
-        
+
         Parameters
         ----------
         object_name : :obj:`str`
             Object to delete
-        
+
         Raises
         ------
         ValueError
@@ -1119,7 +1122,7 @@ class DexNet(object):
 
         logger.info('Deleting {}'.format(object_name))
         self.dataset.delete_graspable(object_name)
-        
+
     def close_database(self):
         if self.database:
             logger.info('Closing database')

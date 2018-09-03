@@ -1,5 +1,5 @@
 # Dex-Net Database params
-database_name: /path/to/your/example.hdf5
+database_name: example.hdf5
 
 # Dataset params
 gripper: yumi_metal_spline

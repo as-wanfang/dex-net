@@ -1,7 +1,9 @@
 # General params
-show_gripper: 1
-max_plot_gripper: 250
+show_gripper: 0
+max_plot_gripper: 10
+min_metric: 0.0
 table_extent: 0.15
+animate: False
 gravity_accel: 9.81
 custom_stable_poses: False
 overwrite_grasps: False
@@ -36,12 +38,12 @@ metrics:
     quality_type: robust_quasi_static
     all_contacts_required: 1
     check_approach: False
-    
+
     # optional deterministic parameters
     torque_scaling: 1000.0
     wrench_norm_thresh: 0.001
     wrench_regularizer: 0.0000000001
-    
+
     # PARAMS for robust grasp metrics
     # uncertainty
     grasp_uncertainty:
@@ -74,7 +76,7 @@ metrics:
     friction_coef: 0.5
     num_cone_faces: 8
     soft_fingers: 1
-    quality_type: quasi_static    
+    quality_type: quasi_static
     all_contacts_required: 1
     check_approach: False
 
@@ -116,3 +118,9 @@ num_elev: 2
 num_az: 8
 num_roll: 1
 min_p: 0.01
+
+
+# Object export params
+export_format: obj
+export_scale: 1.0
+export_overwrite: True

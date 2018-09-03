@@ -108,11 +108,13 @@ class Hdf5ObjectFactory(object):
     @staticmethod
     def write_stable_poses(stable_poses, data, force_overwrite=False):
         """ Writes stable poses to HDF5 data provided in data """
+        logging.info('wanfang:  starting write stable poses')
         num_stable_poses = len(stable_poses)
         data.attrs.create(NUM_STP_KEY, num_stable_poses)
         for i, stable_pose in enumerate(stable_poses):
             stp_key = POSE_KEY + '_' + str(i)
             if stp_key not in data.keys():
+                logging.info('wanfang:  write stable pose')
                 data.create_group(stp_key)
                 data[stp_key].attrs.create(STABLE_POSE_PROB_KEY, stable_pose.p)
                 data[stp_key].attrs.create(STABLE_POSE_ROT_KEY, stable_pose.r)
